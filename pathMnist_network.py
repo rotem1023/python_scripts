@@ -61,11 +61,7 @@ def extract_logits_and_softmax(model, data):
     
     return logits, softmax_values
 
-if __name__ == '__main__':
-    check = np.load("./resources/epoch_19/test_logits.npy")
-    print(check.shape)
-    print(check)
-    os.exit(0)    
+if __name__ == '__main__':  
     _validate_gpu()
     
     dir_path = './resources/'
@@ -114,7 +110,6 @@ if __name__ == '__main__':
         train_generator,
         validation_data=val_generator,
         epochs=50,
-        callbacks=[early_stopping, reduce_lr],
         verbose=2  
     )
     
