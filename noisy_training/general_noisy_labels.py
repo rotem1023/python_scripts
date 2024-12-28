@@ -1,11 +1,8 @@
 import sys
-sys.path.append('/home/dsi/rotemnizhar/dev/noisy-temperature-scaling/')
+sys.path.append('/home/dsi/rotemnizhar/dev/python_scripts')
 
-from ham10000.get_loaders import get_loaders as get_loaders_ham
-from path_mnist.get_loaders import get_loaders as get_loaders_path_mnist
-from cifar_10.get_loaders import get_loaders as get_loaders_cifar
-from mnist_10.get_loaders import get_loaders as get_loaders_mnist
-
+from noisy_training.loader import get_loaders_for_training, get_num_classes
+from noisy_training.file_handler import get_data_dir
 
 import argparse
 import torch
@@ -107,34 +104,43 @@ def set_parameter_requires_grad(model, feature_extracting):
         for param in model.parameters():
             param.requires_grad = False
             
-def get_model(data_set):
-    if data_set == "ham10000":
-        # return ConvNetHam1000()
-        model_ft = models.resnet18(pretrained=True)
-        set_parameter_requires_grad(model_ft, False)
-        num_ftrs = model_ft.fc.in_features
-        model_ft.fc = nn.Linear(num_ftrs, 8)
-        return model_ft
-    elif data_set == "mnist-10":
-        return ConvNetMnist10()
-    elif data_set == "path_mnist":
-        return ConvNetPathMnist()
-    elif data_set == "cifar-10":
-        return ConvNetCifar10()
-    else:
-        raise Exception("Unsupported dataset")
+# def get_model(data_set):
+#     if data_set == "ham10000":
+#         # return ConvNetHam1000()
+#         model_ft = models.resnet18(pretrained=True)
+#         set_parameter_requires_grad(model_ft, False)
+#         num_ftrs = model_ft.fc.in_features
+#         model_ft.fc = nn.Linear(num_ftrs, 8)
+#         return model_ft
+#     elif data_set == "mnist-10":
+#         return ConvNetMnist10()
+#     elif data_set == "path_mnist":
+#         return ConvNetPathMnist()
+#     elif data_set == "cifar-10":
+#         return ConvNetCifar10()
+#     else:
+#         raise Exception("Unsupported dataset")
     
-def get_loaders(data_set):
-    if data_set == "ham10000":
-        return get_loaders_ham
-    elif data_set == "mnist-10":
-        return get_loaders_mnist
-    elif data_set == "path_mnist":
-        return get_loaders_path_mnist
-    elif data_set == "cifar-10":
-        return get_loaders_cifar
-    else:
-        raise Exception("Unsupported dataset")
+    
+def get_model(model_name, num_classes, feature_extract = True, use_pretrained=True):
+    model_ft = models.resnet101(pretrained=use_pretrained)
+    set_parameter_requires_grad(model_ft, feature_extract)
+    num_ftrs = model_ft.fc.in_features
+    model_ft.fc = nn.Linear(num_ftrs, num_classes)
+
+    return model_ft
+    
+# def get_loaders(data_set):
+#     if data_set == "ham10000":
+#         return get_loaders_ham
+#     elif data_set == "mnist-10":
+#         return get_loaders_mnist
+#     elif data_set == "path_mnist":
+#         return get_loaders_path_mnist
+#     elif data_set == "cifar-10":
+#         return get_loaders_cifar
+#     else:
+#         raise Exception("Unsupported dataset")
     
 def _normalize_targets(targets):
     if targets.ndim > 1:
@@ -262,7 +268,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Create noisy labels')
     parser.add_argument('--data_set',
-                        default='path_mnist',
+                        default='pathmnist',
                         help='data set under test',
                         type=str)
     parser.add_argument('--num_epochs',
@@ -278,7 +284,7 @@ if __name__ == '__main__':
 
     
     parser.add_argument('--acc',
-                        default=90,
+                        default=80,
                         help='desired accuracy of noisy labels',
                         type=int)
     
@@ -287,15 +293,16 @@ if __name__ == '__main__':
     num_epochs = args.num_epochs
     accuracy_threshold = args.acc
     dataset = args.data_set
+    num_classes= get_num_classes(dataset=dataset)
 
     print(f"Create noisy labels for data set: {dataset}, accuracy threshold: {accuracy_threshold}")
     
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = get_model(dataset)
-    loaders = get_loaders(data_set=dataset)
+    model = get_model(dataset, num_classes=num_classes)
+
     model = model.to(device)
-    train_loader,train_loader_at_eval, val_loader, test_loader = loaders(batch_size=args.batch_size)
-    _,train_loader_for_pred, val_loader_for_pred, test_loader_for_pred = loaders(batch_size=args.batch_size)
+    train_loader,train_loader_at_eval, val_loader, test_loader = get_loaders_for_training(dataset_name=dataset)
+    _,train_loader_for_pred, val_loader_for_pred, test_loader_for_pred = get_loaders_for_training(dataset_name=dataset)
 
     combined_loader = create_combine_loader(train_loader=train_loader_at_eval, valid_loader=val_loader, test_loader=test_loader, batch_size=batch_size)
     
@@ -306,10 +313,12 @@ if __name__ == '__main__':
     valid_predictions, valid_labels, valid_accuracy = predict_and_evaluate(model=model, loader=val_loader_for_pred, device=device)
     test_predictions, test_labels, test_accuracy = predict_and_evaluate(model=model, loader=test_loader_for_pred, device=device)
     
-    os.makedirs("outputs", exist_ok=True)
-    np.save(f"outputs/noisy_labels_train_dataset_{dataset}_acc_{train_accuracy}", train_predictions.numpy())
-    np.save(f"outputs/noisy_labels_valid_dataset_{dataset}_acc_{valid_accuracy}", valid_predictions.numpy())
-    np.save(f"outputs/noisy_labels_test_dataset_{dataset}_acc_{test_accuracy}", test_predictions.numpy())
+    
+    outputdir = get_data_dir(dataset=dataset)
+    os.makedirs(outputdir, exist_ok=True)
+    np.save(f"{outputdir}/noisy_labels_train_dataset_{dataset}_want_acc_{accuracy_threshold}_real_acc_{round(train_accuracy)}", train_predictions.numpy())
+    np.save(f"{outputdir}/noisy_labels_valid_dataset_{dataset}_want_acc_{accuracy_threshold}_real_acc_{round(train_accuracy)}", valid_predictions.numpy())
+    np.save(f"{outputdir}/noisy_labels_test_dataset_{dataset}_want_acc_{accuracy_threshold}_real_acc_{round(train_accuracy)}", test_predictions.numpy())
     print(f"Create noisy labels for data set: {dataset}, accuracy threshold: {accuracy_threshold}")
     print(f"saved results for data set: {dataset}")
 

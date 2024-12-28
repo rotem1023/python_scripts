@@ -1,4 +1,7 @@
 import os, sys, inspect
+sys.path.append('/home/dsi/rotemnizhar/dev/python_scripts')
+from noisy_training.loader import get_loaders_noisy_training, get_num_classes
+from noisy_training.file_handler import get_data_dir
 import torch
 import torch.nn as nn
 import torch.utils.data as data
@@ -19,9 +22,11 @@ from torch.optim.lr_scheduler import MultiStepLR
 import time 
 import noise
 
+
 from torch import nn
 from torchvision import models,transforms
 
+from file_handler import *
 
 device = 'cuda' if (torch.cuda.is_available()) else 'cpu'
 
@@ -223,6 +228,7 @@ def train_model(model,
         estimate_error = error(est_T, train_transition_matrix)
 
         matrix_path = f'./{dataset_name}/ckpts/trans_matrix_est/eps_{epsilon}/{model_name}_lam_{lam}_epochs_{n_epochs}_lr_{lr}_bs_{batch_size}_seed_{seed}_matrix_epoch_{epoch+1}.npy'
+        create_dir(matrix_path, except_last=True)
         np.save(matrix_path, est_T)
 
         print('Estimation Error: {:.2f}'.format(estimate_error))
@@ -268,6 +274,7 @@ def train_model(model,
         if (epoch >= 5) and (epoch % 5 == 0):
             best_ckpt_epoch = epoch + 1
             best_model_path = f'./{dataset_name}/ckpts/trans_matrix_est/eps_{epsilon}/new_model_{model_name}_{n_epochs}_lr_{lr}_bs_{batch_size}_lam_{lam}_epoch_{epoch}_seed_{seed}.pth'
+            create_dir(best_model_path, except_last=True)
             torch.save(model, best_model_path)
         
         val_loss_list.append(val_loss / valid_items)
@@ -278,18 +285,19 @@ def train_model(model,
     model_index = np.argmin(val_loss_array)
     model_index_acc = np.argmax(val_acc_array)
 
-    matrix_path = f'./{dataset_name}/trans_matrix_est/eps_{epsilon}/{model_name}_lam_{lam}_epochs_{n_epochs}_lr_{lr}_bs_{batch_size}_seed_{seed}_' 'matrix_epoch_%d.npy' % (model_index+1)
-    final_est_T = np.load(matrix_path)
-    final_estimate_error = error(final_est_T, train_transition_matrix)
+    # matrix_path = f'./{dataset_name}/trans_matrix_est/eps_{epsilon}/{model_name}_lam_{lam}_epochs_{n_epochs}_lr_{lr}_bs_{batch_size}_seed_{seed}_' + 'matrix_epoch_%d.npy' % (model_index+1)
+    # final_est_T = np.load(matrix_path)
+    # final_estimate_error = error(final_est_T, train_transition_matrix)
 
-    matrix_path_acc = f'./{dataset_name}/trans_matrix_est/eps_{epsilon}/{model_name}_lam_{lam}_epochs_{n_epochs}_lr_{lr}_bs_{batch_size}_seed_{seed}_' + 'matrix_epoch_%d.npy' % (model_index_acc+1)
-    final_est_T_acc = np.load(matrix_path_acc)
-    final_estimate_error_acc = error(final_est_T_acc, train_transition_matrix)
+    # matrix_path_acc = f'./{dataset_name}/trans_matrix_est/eps_{epsilon}/{model_name}_lam_{lam}_epochs_{n_epochs}_lr_{lr}_bs_{batch_size}_seed_{seed}_' + 'matrix_epoch_%d.npy' % (model_index_acc+1)
+    # final_est_T_acc = np.load(matrix_path_acc)
+    # final_estimate_error_acc = error(final_est_T_acc, train_transition_matrix)
 
-    print("Final estimation error loss: %f" % final_estimate_error)
-    print("Final estimation error loss acc: %f" % final_estimate_error_acc)
-    print("Best epoch: %d" % model_index)
-    print(final_est_T)
+    # print("Final estimation error loss: %f" % final_estimate_error)
+    # print("Final estimation error loss acc: %f" % final_estimate_error_acc)
+    # print("Best epoch: %d" % model_index)
+    # print(final_est_T)
+    return model
 
 def prep_model_and_data(dataset_name = 'pathmnist'):
     BATCH_SIZE = 32
@@ -373,52 +381,58 @@ def prep_model_and_data(dataset_name = 'pathmnist'):
     
     return train_loader, val_loader, test_loader, train_transition_matrix, train_labels, model
 
-def get_embeds_logits(model, loader, device):
+def get_logits(model, loader, device):
     model = model.to(device)
     model.eval()
         
-    all_embeds = []
+    all_logits = []
     all_preds = []
     all_labels = []
     with torch.no_grad():
         for batch in tqdm(loader):
             x = batch[0].to(device)
-            embeds = model(x)
-            preds = model.fc(embeds)
+            logits = model(x)
 
-            embeds = embeds.detach().cpu().numpy()
+            # Convert logits to predictions (e.g., probabilities or class indices)
+            preds = F.softmax(logits, dim=1).argmax(dim=1)  # Class indices
+
+            # Move everything to CPU and convert to NumPy
+            # embeds = embeds.detach().cpu().numpy()
+            logits = logits.detach().cpu().numpy()
             preds = preds.detach().cpu().numpy()
 
-            all_embeds.append(embeds)
+            # all_embeds.append(embeds)
+            all_logits.append(logits)
             all_preds.append(preds)
             all_labels.append(batch[1].numpy())
 
-    all_embeds = np.concatenate(all_embeds, 0)
+    # Concatenate results across all batches
+    # all_embeds = np.concatenate(all_embeds, 0)
+    all_logits = np.concatenate(all_logits, 0)
     all_preds = np.concatenate(all_preds, 0)
     all_labels = np.concatenate(all_labels, 0)
-    return all_embeds, all_preds, all_labels
+    
+    return all_logits, all_preds, all_labels
 
 
 def calc(model, loader, device, fold='Test'):
-    all_embeds, all_preds, all_labels = get_embeds_logits(model, loader, device)
-    all_labels = np.squeeze(all_labels)
-    print(f'Embeds shape : {all_embeds.shape}')
+    all_logits, all_preds, all_noisy_labels = get_logits(model, loader, device)
+    all_noisy_labels = np.squeeze(all_noisy_labels)
+    # print(f'Embeds shape : {all_embeds.shape}')
     print(f'Preds shape : {all_preds.shape}')
-    print(f'Labels shape : {all_labels.shape}')
+    print(f'Noisy Labels shape : {all_noisy_labels.shape}')
 
-    counts = np.bincount(all_labels)
+    counts = np.bincount(all_noisy_labels)
 
     print(fold)
     print('Labels count: mean: {:.3f} max: {:.3f} min: {:.3f}'.format(counts.mean(),
                                                                       counts.max(),
                                                                       counts.min()))
 
-    print(f'Acc: {(all_preds.argmax(1) == all_labels).mean()}')
-    return all_embeds, all_preds, all_labels
+    return all_logits, all_preds, all_noisy_labels
 
 
-def train(model, train_dataloader, valid_dataloader):
-    noise_type = 'symmetric' # 'asymmetric'
+def train(model, train_dataloader, valid_dataloader, train_transition_matrix, epsilon):
     weight_decay = 1e-4
     lam = 0
     iam_lr = 0
@@ -435,15 +449,17 @@ def train(model, train_dataloader, valid_dataloader):
     loss_func_ce = torch.nn.NLLLoss()
     # done with 
     for lr in [0.00001]:
-        if opt == 'Adam':
-            optimizer_es = optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-4)
-        elif opt == 'SGD':
-            optimizer_es = optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay, momentum=0.9)
+        # if opt == 'Adam':
+        #     optimizer_es = optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-4)
+        # elif opt == 'SGD':
+        #     optimizer_es = optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay, momentum=0.9)
+        optimizer_es = optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-4)
+
         scheduler1 = MultiStepLR(optimizer_es, milestones=milestones, gamma=0.1)
 
 
         print ('=== Start Training ===')
-        best_model_path = train_model(model = model, 
+        last_model = train_model(model = model, 
                                 trans = trans,
                                 train_data_loader = train_dataloader, 
                                 valid_data_loader = valid_dataloader,
@@ -459,57 +475,80 @@ def train(model, train_dataloader, valid_dataloader):
                                 epsilon=epsilon,
                                 model_name= model_name, 
                                 train_transition_matrix = train_transition_matrix)
+        return last_model
 
-def save(model, test_loader, val_loader, out_dir):
+def save(model, test_loader, val_loader, out_dir, true_labels):
+    create_dir(out_dir)
     # on test
-    all_embeds, all_preds, all_labels = calc(model, test_loader, device, fold='Test')
-    print(f'Embeds shape : {all_embeds.shape}')
+    all_logits, all_preds, all_noisy_labels = calc(model, test_loader, device, fold='Test')
+    # print(f'Embeds shape : {all_embeds.shape}')
+    print(f'Logits shape : {all_logits.shape}, test')
     print(f'Preds shape : {all_preds.shape}')
-    print(f'Labels shape : {all_labels.shape}')
-    save_pickle({'embeds': all_embeds,
+    print(f'Noisy Labels shape : {all_noisy_labels.shape}, test')
+    save_pickle({'logits': all_logits,
                  'preds': all_preds,
-                 'labels': all_labels}, os.path.join(out_dir, 'noisy_training__test.pickle'))
+                 'noisyLabels': all_noisy_labels,
+                 'labels' :  true_labels.test_labels} , os.path.join(out_dir, 'noisy_training__test.pickle'))
 
     # on val
-    all_embeds, all_preds, all_labels = calc(model, val_loader, device, fold='Val')
-    print(f'Embeds shape : {all_embeds.shape}')
-    print(f'Preds shape : {all_preds.shape}')
-    print(f'Labels shape : {all_labels.shape}')
-    save_pickle({'embeds': all_embeds,
+    all_logits, all_preds, all_noisy_labels = calc(model, val_loader, device, fold='Val')
+    # print(f'Embeds shape : {all_embeds.shape}')
+    print(f'Logits shape : {all_logits.shape}, valid')
+    print(f'Preds shape : {all_preds.shape}, valid')
+    print(f'Noisy Labels shape : {all_noisy_labels.shape}, valid')
+    save_pickle({'loguts': all_logits,
                  'preds': all_preds,
-                 'labels': all_labels}, os.path.join(out_dir, 'noisy_training__valid.pickle'))
+                 'noisyLabels': all_noisy_labels,
+                 'labels' : true_labels.valid_labels}, os.path.join(out_dir, 'noisy_training__valid.pickle'))
+    
+    torch.save(model.state_dict(), os.path.join(out_dir, 'model.pth'))
 
-
-dataset_to_n_classes_map = {
-    'octmnist': 4,
-    'ham10000': 7,
-    'path_mnist': 9,
-    'pathmnist': 9,
-    'tissuemnist': 8,
-    'bloodmnist': 8,
-    'organamnist': 11,
-    'organcmnist': 11,
-    'organsmnist': 11,
-    'cifar10': 10,
-    'cifar100': 100,
-    'tinyimagenet': 200,
-    'imagenet': 1000,
-    'dermamnist': 7
-}
 
 if __name__ == "__main__":
     print ("starting")
+    
+    parser = argparse.ArgumentParser(
+        description='train model on noisy labels')
+    parser.add_argument('--data_set',
+                        default='pathmnist',
+                        help='data set under test',
+                        type=str)
+    parser.add_argument('--model_name',
+                        default='resnet18',
+                        type=str)
+    parser.add_argument('--num_epochs',
+                        default=50,
+                        help='num of epochs of training, the script would only test model if set num_epochs to 0',
+                        type=int)
+    parser.add_argument('--batch_size',
+                        default=32,
+                        type=int)
+    parser.add_argument('--gpu_ids',
+                        default='0',
+                        type=str)
+    parser.add_argument('--acc',
+                        default='90',
+                        type=str)
+    
+    args = parser.parse_args()
+    n_epochs = args.num_epochs
+    batch_size = args.batch_size
+    dataset_name = args.data_set
+    model_name = args.model_name
+    acc = args.acc
+    
+
     # main_imnet1k()
     seed = 42
-    opt = 'Adam'
-    n_epochs = 50
-    batch_size = 64
-    epsilon = 0.2
-    model_name = 'resnet18'
-    dataset_name = 'organsmnist'
-    num_classes = dataset_to_n_classes_map[dataset_name]
-    out_dir = f'./{dataset_name}/data'
+    num_classes = get_num_classes(dataset_name)
+    out_dir = get_data_dir(dataset=dataset_name)
+    create_dir(out_dir)
     print ("prepare data and model")
-    train_loader, val_loader, test_loader, train_transition_matrix, train_labels, model = prep_model_and_data(dataset_name=dataset_name)
-    model = train(model = model, train_dataloader=train_loader, valid_dataloader=val_loader)
-    save(model, test_loader, val_loader, out_dir)
+    
+    model, _ = get_model(model_name=model_name, num_classes=num_classes)
+    train_loader, train_loader_at_eval, val_loader, test_loader, true_labels, trnasition_matrixes =  get_loaders_noisy_training(dataset_name=dataset_name, acc=acc)
+    
+    # train_loader, val_loader, test_loader, train_transition_matrix, train_labels, model = prep_model_and_data(dataset_name=dataset_name)
+    model = train(model = model, train_dataloader=train_loader, valid_dataloader=val_loader, train_transition_matrix=trnasition_matrixes.train_matrix, epsilon=(100-acc)/100)
+    save(model, test_loader, val_loader, out_dir, true_labels)
+    print("results saved")
