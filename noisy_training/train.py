@@ -39,7 +39,7 @@ def set_parameter_requires_grad(model, feature_extracting):
         for param in model.parameters():
             param.requires_grad = False
 
-def get_model(model_name, num_classes = 9, feature_extract = False, use_pretrained=True):
+def get_model(model_name, num_classes, feature_extract = False, use_pretrained=True):
     model_ft = None
 
     if model_name == "resnet18":
@@ -227,9 +227,9 @@ def train_model(model,
         est_T = t.detach().cpu().numpy()
         estimate_error = error(est_T, train_transition_matrix)
 
-        matrix_path = f'./{dataset_name}/ckpts/trans_matrix_est/eps_{epsilon}/{model_name}_lam_{lam}_epochs_{n_epochs}_lr_{lr}_bs_{batch_size}_seed_{seed}_matrix_epoch_{epoch+1}.npy'
-        create_dir(matrix_path, except_last=True)
-        np.save(matrix_path, est_T)
+        # matrix_path = f'./{dataset_name}/ckpts/trans_matrix_est/eps_{epsilon}/{model_name}_lam_{lam}_epochs_{n_epochs}_lr_{lr}_bs_{batch_size}_seed_{seed}_matrix_epoch_{epoch+1}.npy'
+        # create_dir(matrix_path, except_last=True)
+        # np.save(matrix_path, est_T)
 
         print('Estimation Error: {:.2f}'.format(estimate_error))
         print(est_T)
@@ -274,8 +274,8 @@ def train_model(model,
         if (epoch >= 5) and (epoch % 5 == 0):
             best_ckpt_epoch = epoch + 1
             best_model_path = f'./{dataset_name}/ckpts/trans_matrix_est/eps_{epsilon}/new_model_{model_name}_{n_epochs}_lr_{lr}_bs_{batch_size}_lam_{lam}_epoch_{epoch}_seed_{seed}.pth'
-            create_dir(best_model_path, except_last=True)
-            torch.save(model, best_model_path)
+            # create_dir(best_model_path, except_last=True)
+            # torch.save(model, best_model_path)
         
         val_loss_list.append(val_loss / valid_items)
         val_acc_list.append(val_acc / valid_items)
