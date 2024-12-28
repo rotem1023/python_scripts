@@ -3,6 +3,8 @@ import os
 def create_dir(dirpath, except_last =False):
     split_path = dirpath.split("/")
     cur_path = split_path[0]
+    if len(cur_path) ==0:
+        cur_path ='/'
     os.makedirs(cur_path, exist_ok=True)
     n = len(split_path)
     if except_last:
@@ -16,5 +18,5 @@ def create_dir(dirpath, except_last =False):
         
 
 def get_data_dir(dataset):
-    root_dir = '/home/dsi/rotemnizhar/dev/python_scripts/noisy_training'
-    return f'{root_dir}/{dataset}'
+    root_dir = '/home/dsi/rotemnizhar/dev/python_scripts'
+    return f'{root_dir}/{dataset}/data'

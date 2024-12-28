@@ -433,7 +433,6 @@ def calc(model, loader, device, fold='Test'):
 
 
 def train(model, train_dataloader, valid_dataloader, train_transition_matrix, epsilon):
-    weight_decay = 1e-4
     lam = 0
     iam_lr = 0
     trans = sig_t_uniform(device, num_classes)
@@ -449,10 +448,6 @@ def train(model, train_dataloader, valid_dataloader, train_transition_matrix, ep
     loss_func_ce = torch.nn.NLLLoss()
     # done with 
     for lr in [0.00001]:
-        # if opt == 'Adam':
-        #     optimizer_es = optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-4)
-        # elif opt == 'SGD':
-        #     optimizer_es = optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay, momentum=0.9)
         optimizer_es = optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-4)
 
         scheduler1 = MultiStepLR(optimizer_es, milestones=milestones, gamma=0.1)
@@ -477,7 +472,7 @@ def train(model, train_dataloader, valid_dataloader, train_transition_matrix, ep
                                 train_transition_matrix = train_transition_matrix)
         return last_model
 
-def save(model, test_loader, val_loader, out_dir, true_labels):
+def save(model_name, model, test_loader, val_loader, out_dir, true_labels, acc):
     create_dir(out_dir)
     # on test
     all_logits, all_preds, all_noisy_labels = calc(model, test_loader, device, fold='Test')
@@ -488,7 +483,9 @@ def save(model, test_loader, val_loader, out_dir, true_labels):
     save_pickle({'logits': all_logits,
                  'preds': all_preds,
                  'noisyLabels': all_noisy_labels,
-                 'labels' :  true_labels.test_labels} , os.path.join(out_dir, 'noisy_training__test.pickle'))
+                 'labels' :  true_labels.test_labels} , os.path.join(out_dir, f'model_{model_name}_noisy_training_test_acc_{acc}.pickle'))
+    
+    print(f"accuracy test: {sum(all_preds==true_labels.test_labels)/len(all_preds)}")
 
     # on val
     all_logits, all_preds, all_noisy_labels = calc(model, val_loader, device, fold='Val')
@@ -499,9 +496,11 @@ def save(model, test_loader, val_loader, out_dir, true_labels):
     save_pickle({'loguts': all_logits,
                  'preds': all_preds,
                  'noisyLabels': all_noisy_labels,
-                 'labels' : true_labels.valid_labels}, os.path.join(out_dir, 'noisy_training__valid.pickle'))
+                 'labels' : true_labels.valid_labels}, os.path.join(out_dir, f'model_{model_name}_noisy_training_valid_acc_{acc}.pickle'))
     
-    torch.save(model.state_dict(), os.path.join(out_dir, 'model.pth'))
+    print(f"accuracy validation: {sum(all_preds==true_labels.valid_labels)/len(all_preds)}")
+    
+    torch.save(model.state_dict(), os.path.join(out_dir, f'model_{model_name}_acc_{acc}.pth'))
 
 
 if __name__ == "__main__":
@@ -510,14 +509,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='train model on noisy labels')
     parser.add_argument('--data_set',
-                        default='pathmnist',
+                        default='bloodmnist',
                         help='data set under test',
                         type=str)
     parser.add_argument('--model_name',
                         default='resnet18',
                         type=str)
     parser.add_argument('--num_epochs',
-                        default=50,
+                        default=25,
                         help='num of epochs of training, the script would only test model if set num_epochs to 0',
                         type=int)
     parser.add_argument('--batch_size',
@@ -527,7 +526,7 @@ if __name__ == "__main__":
                         default='0',
                         type=str)
     parser.add_argument('--acc',
-                        default='90',
+                        default='80',
                         type=str)
     
     args = parser.parse_args()
@@ -549,6 +548,6 @@ if __name__ == "__main__":
     train_loader, train_loader_at_eval, val_loader, test_loader, true_labels, trnasition_matrixes =  get_loaders_noisy_training(dataset_name=dataset_name, acc=acc)
     
     # train_loader, val_loader, test_loader, train_transition_matrix, train_labels, model = prep_model_and_data(dataset_name=dataset_name)
-    model = train(model = model, train_dataloader=train_loader, valid_dataloader=val_loader, train_transition_matrix=trnasition_matrixes.train_matrix, epsilon=(100-acc)/100)
-    save(model, test_loader, val_loader, out_dir, true_labels)
+    model = train(model = model, train_dataloader=train_loader, valid_dataloader=val_loader, train_transition_matrix=trnasition_matrixes.train_matrix, epsilon=(100-float(acc))/100)
+    save(model_name, model, test_loader, val_loader, out_dir, true_labels, acc)
     print("results saved")

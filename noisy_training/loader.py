@@ -141,16 +141,16 @@ def get_loaders_for_training(dataset_name):
     
     train_loader = data.DataLoader(dataset=train_tensor_dataset,
                                 batch_size=BATCH_SIZE,
-                                shuffle=True)
+                                shuffle=True, num_workers=2)
     train_loader_at_eval = data.DataLoader(dataset=train_tensor_at_eval,
                                 batch_size=BATCH_SIZE,
-                                shuffle=False)
+                                shuffle=False, num_workers=2)
     
     val_loader = data.DataLoader(dataset=valid_tensor_dataset,
                                 batch_size=BATCH_SIZE,
-                                shuffle=False)
+                                shuffle=False, num_workers=2)
 
-    test_loader = data.DataLoader(dataset=test_tensor_dataset, batch_size=2*BATCH_SIZE, shuffle=False)
+    test_loader = data.DataLoader(dataset=test_tensor_dataset, batch_size=2*BATCH_SIZE, shuffle=False, num_workers=2)
     
     return train_loader, train_loader_at_eval, val_loader, test_loader
     
@@ -169,20 +169,20 @@ def get_loaders_noisy_training(dataset_name, acc):
     
     train_loader = data.DataLoader(dataset=train_tensor_dataset,
                                 batch_size=BATCH_SIZE,
-                                shuffle=True)
+                                shuffle=True, num_workers=2)
     train_loader_at_eval = data.DataLoader(dataset=train_tensor_at_eval,
                                 batch_size=BATCH_SIZE,
-                                shuffle=False)
+                                shuffle=False, num_workers=2)
     
     val_loader = data.DataLoader(dataset=valid_tensor_dataset,
                                 batch_size=BATCH_SIZE,
-                                shuffle=False)
+                                shuffle=False, num_workers=2)
     
 
-    test_loader = data.DataLoader(dataset=test_tensor_dataset, batch_size=2*BATCH_SIZE, shuffle=False)
+    test_loader = data.DataLoader(dataset=test_tensor_dataset, batch_size=2*BATCH_SIZE, shuffle=False, num_workers=2)
     true_labels = TrueLabels(train_labels=cur_data.train_labels, valid_labels=cur_data.valid_labels, test_labels=cur_data.test_labels)
     
-    n_classes = np.unique(cur_data.train_labels.numpy())
+    n_classes = len(np.unique(cur_data.train_labels.numpy()))
     transition_matrix = TransitionMatrix(train=create_transition_matrix(n_classes=n_classes, labels = cur_data.train_labels, noisy_labels=noisy_labels_training_eval)
                                          , valid= create_transition_matrix(n_classes=n_classes, labels = cur_data.valid_labels, noisy_labels=noisy_labels_valid),
                                          test=create_transition_matrix(n_classes=n_classes, labels = cur_data.test_labels, noisy_labels=noisy_labels_test))

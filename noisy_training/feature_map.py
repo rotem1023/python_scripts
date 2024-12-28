@@ -16,7 +16,7 @@ from noisy_training.loader import get_loaders_for_training
 import argparse
 import gc
 import os
-
+from noisy_training.file_handler import get_data_dir
 
 class SwinBase(nn.Module):
     def __init__(self, in_22k_1k=False, in_timm_1k=False):
@@ -108,13 +108,13 @@ if __name__ == '__main__':
     valid_fatures, valid_labels = extract_features(val_loader, model, device)
     test_fetaures, test_labels = extract_features(test_loader, model, device)
         
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    outputdir = f'./{dataset_name}/data'
+    
+    outputdir = get_data_dir(dataset=dataset_name)
     os.makedirs(outputdir, exist_ok=True) 
     np.save(f"{outputdir}/valid_features_map_{model_type}.npy", valid_fatures)
     np.save(f"{outputdir}/test_features_map_{model_type}.npy", test_fetaures)
     
-    np.save(f"{outputdir}/valid_labels_check.npy", valid_labels)
-    np.save(f"{outputdir}/test_labels_check.npy", test_labels)
+    # np.save(f"{outputdir}/valid_labels_check.npy", valid_labels)
+    # np.save(f"{outputdir}/test_labels_check.npy", test_labels)
     
     print("save features")

@@ -267,7 +267,7 @@ def train(model, combined_loader, device, train_loader, valid_loader, test_loade
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Create noisy labels')
-    parser.add_argument('--data_set',
+    parser.add_argument('--dataset',
                         default='pathmnist',
                         help='data set under test',
                         type=str)
@@ -292,7 +292,7 @@ if __name__ == '__main__':
     batch_size = args.batch_size
     num_epochs = args.num_epochs
     accuracy_threshold = args.acc
-    dataset = args.data_set
+    dataset = args.dataset
     num_classes= get_num_classes(dataset=dataset)
 
     print(f"Create noisy labels for data set: {dataset}, accuracy threshold: {accuracy_threshold}")
