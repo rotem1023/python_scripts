@@ -29,6 +29,7 @@ dataset_to_n_classes_map = {
     'tinyimagenet': 200,
     'imagenet': 1000,
     'dermamnist': 7,
+    'chestmnist': 14
 }
 
 class Data:
@@ -65,6 +66,8 @@ def dataset_to_tensor(dataset):
     labels_list = []
 
     for images, labels in dataloader:
+        if 'ChestMNIST' ==  dataset.info['python_class']:  #chestmnist is one hot encoding
+            labels = labels.argmax(dim=1)
         images = images.view(-1, 3, PIXELS, PIXELS)
         labels = labels.view(-1)
         images_list.append(images)

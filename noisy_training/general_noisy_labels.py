@@ -268,7 +268,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Create noisy labels')
     parser.add_argument('--dataset',
-                        default='organamnist',
+                        default='chestmnist',
                         help='data set under test',
                         type=str)
     parser.add_argument('--num_epochs',
