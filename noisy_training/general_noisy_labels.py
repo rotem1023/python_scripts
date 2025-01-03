@@ -268,7 +268,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Create noisy labels')
     parser.add_argument('--dataset',
-                        default='pathmnist',
+                        default='organamnist',
                         help='data set under test',
                         type=str)
     parser.add_argument('--num_epochs',
@@ -298,6 +298,7 @@ if __name__ == '__main__':
     print(f"Create noisy labels for data set: {dataset}, accuracy threshold: {accuracy_threshold}")
     
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print(f"we use device: {device}")
     model = get_model(dataset, num_classes=num_classes)
 
     model = model.to(device)

@@ -158,6 +158,134 @@ def save_pickle(data, file_path):
 val_loss_list = []
 val_acc_list = []
 
+# def train_model(model,
+#                 trans,
+#                 train_data_loader,
+#                 valid_data_loader,
+#                 optimizer_es,
+#                 optimizer_trans,
+#                 scheduler1,
+#                 scheduler2,
+#                 n_epochs,
+#                 loss_func_ce,
+#                 batch_size,
+#                 lr,
+#                 epsilon,
+#                 model_name,
+#                 train_transition_matrix,
+#                 lam):
+
+
+#     for epoch in range(n_epochs):
+
+#         print('epoch {}'.format(epoch + 1))
+
+#         epoch_time_start = time.time()
+
+#         model.train()
+#         trans.train()
+
+#         train_loss = 0.
+#         train_vol_loss =0.
+#         train_acc = 0.
+#         val_loss = 0.
+#         val_acc = 0.
+
+#         train_items = 0
+#         model = model.to(device)
+#         for batch_x, batch_y in tqdm(train_data_loader):
+#             batch_x = batch_x.to(device)
+#             batch_y = batch_y.to(device)
+#             train_items += len(batch_x)
+#             optimizer_es.zero_grad()
+#             optimizer_trans.zero_grad()
+
+
+#             clean = F.softmax(model(batch_x), 1)
+#             t = trans()
+
+#             out = torch.mm(clean, t)
+
+#             vol_loss = t.slogdet().logabsdet
+#             ce_loss = loss_func_ce(out.log(), batch_y.long())
+#             loss = ce_loss + lam * vol_loss
+
+#             train_loss += loss.item()
+#             train_vol_loss += vol_loss.item()
+
+#             pred = torch.max(out, 1)[1]
+#             train_correct = (pred == batch_y).sum()
+#             train_acc += train_correct.item()
+
+
+#             loss.backward()
+#             optimizer_es.step()
+#             optimizer_trans.step()
+#         print('Train Loss: {:.6f}, Vol_loss: {:.6f}  Acc: {:.6f}'.format(train_loss / train_items, train_vol_loss / train_items, train_acc / train_items))
+
+#         # --------- Estimation error ---------- #
+#         est_T = t.detach().cpu().numpy()
+#         estimate_error = error(est_T, train_transition_matrix)
+
+#         # matrix_path = f'./{dataset_name}/ckpts/trans_matrix_est/eps_{epsilon}/{model_name}_lam_{lam}_epochs_{n_epochs}_lr_{lr}_bs_{batch_size}_seed_{seed}_matrix_epoch_{epoch+1}.npy'
+#         # create_dir(matrix_path, except_last=True)
+#         # np.save(matrix_path, est_T)
+
+#         print('Estimation Error: {:.2f}'.format(estimate_error))
+#         print(est_T)
+
+#         # ----------------------------------- #
+
+
+#         scheduler1.step()
+#         scheduler2.step()
+
+#         valid_items = 0
+#         with torch.no_grad():
+#             model.eval()
+#             trans.eval()
+#             for batch_x, batch_y in tqdm(valid_data_loader):
+#                 batch_x = batch_x.to(device)
+#                 batch_y = batch_y.to(device)
+#                 valid_items += len(batch_x)
+#                 clean =  F.softmax(model(batch_x))
+#                 t = trans()
+
+#                 out = torch.mm(clean, t)
+#                 loss = loss_func_ce(out.log(), batch_y.long())
+#                 val_loss += loss.item()
+#                 pred = torch.max(out, 1)[1]
+#                 val_correct = (pred == batch_y).sum()
+#                 val_acc += val_correct.item()
+
+                
+#         print('Val Loss: {:.6f}, Acc: {:.6f}'.format(val_loss / valid_items, val_acc / valid_items))
+
+#         epoch_time_end = time.time()
+#         # Log 
+#         print({'epoch': epoch,
+#                    'epoch_time': epoch_time_end-epoch_time_start,
+#                    'test_estimation_error': estimate_error,
+#                    'valid_acc': val_acc / valid_items,
+#                    'valid_loss': val_loss / valid_items,
+#                    'train_acc': train_acc / train_items,
+#                    'train_loss': train_loss / train_items})
+
+        
+#         val_loss_list.append(val_loss / valid_items)
+#         val_acc_list.append(val_acc / valid_items)
+
+#     val_loss_array = np.array(val_loss_list)
+#     val_acc_array = np.array(val_acc_list)
+#     model_index = np.argmin(val_loss_array)
+#     model_index_acc = np.argmax(val_acc_array)
+
+#     final_matrix = trans().detach().cpu().numpy()
+#     return model, final_matrix
+
+
+
+
 def train_model(model,
                 trans,
                 train_data_loader,
@@ -175,35 +303,36 @@ def train_model(model,
                 train_transition_matrix,
                 lam):
 
+    val_loss_list = []
+    val_acc_list = []
+    best_val_acc = 0.0
+    best_model_state = None
+    best_trans_matrix = None
 
     for epoch in range(n_epochs):
 
-        print('epoch {}'.format(epoch + 1))
-
+        print('Epoch {}'.format(epoch + 1))
         epoch_time_start = time.time()
 
         model.train()
         trans.train()
 
-        train_loss = 0.
-        train_vol_loss =0.
-        train_acc = 0.
-        val_loss = 0.
-        val_acc = 0.
-
+        train_loss = 0.0
+        train_vol_loss = 0.0
+        train_acc = 0.0
         train_items = 0
         model = model.to(device)
+
         for batch_x, batch_y in tqdm(train_data_loader):
             batch_x = batch_x.to(device)
             batch_y = batch_y.to(device)
             train_items += len(batch_x)
+
             optimizer_es.zero_grad()
             optimizer_trans.zero_grad()
 
-
             clean = F.softmax(model(batch_x), 1)
             t = trans()
-
             out = torch.mm(clean, t)
 
             vol_loss = t.slogdet().logabsdet
@@ -217,30 +346,20 @@ def train_model(model,
             train_correct = (pred == batch_y).sum()
             train_acc += train_correct.item()
 
-
             loss.backward()
             optimizer_es.step()
             optimizer_trans.step()
-        print('Train Loss: {:.6f}, Vol_loss: {:.6f}  Acc: {:.6f}'.format(train_loss / train_items, train_vol_loss / train_items, train_acc / train_items))
 
-        # --------- Estimation error ---------- #
-        est_T = t.detach().cpu().numpy()
-        estimate_error = error(est_T, train_transition_matrix)
-
-        # matrix_path = f'./{dataset_name}/ckpts/trans_matrix_est/eps_{epsilon}/{model_name}_lam_{lam}_epochs_{n_epochs}_lr_{lr}_bs_{batch_size}_seed_{seed}_matrix_epoch_{epoch+1}.npy'
-        # create_dir(matrix_path, except_last=True)
-        # np.save(matrix_path, est_T)
-
-        print('Estimation Error: {:.2f}'.format(estimate_error))
-        print(est_T)
-
-        # ----------------------------------- #
-
+        print('Train Loss: {:.6f}, Vol_loss: {:.6f}, Acc: {:.6f}'.format(
+            train_loss / train_items, train_vol_loss / train_items, train_acc / train_items))
 
         scheduler1.step()
         scheduler2.step()
 
+        # Validation
         valid_items = 0
+        val_loss = 0.0
+        val_acc = 0.0
         with torch.no_grad():
             model.eval()
             trans.eval()
@@ -248,56 +367,43 @@ def train_model(model,
                 batch_x = batch_x.to(device)
                 batch_y = batch_y.to(device)
                 valid_items += len(batch_x)
-                clean =  F.softmax(model(batch_x))
-                t = trans()
 
+                clean = F.softmax(model(batch_x), 1)
+                t = trans()
                 out = torch.mm(clean, t)
+
                 loss = loss_func_ce(out.log(), batch_y.long())
                 val_loss += loss.item()
+
                 pred = torch.max(out, 1)[1]
                 val_correct = (pred == batch_y).sum()
                 val_acc += val_correct.item()
 
-                
-        print('Val Loss: {:.6f}, Acc: {:.6f}'.format(val_loss / valid_items, val_acc / valid_items))
+        val_loss /= valid_items
+        val_acc /= valid_items
+        print('Val Loss: {:.6f}, Acc: {:.6f}'.format(val_loss, val_acc))
+
+        # Save best model and trans state
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            best_model_state = model.state_dict()
+            best_trans_matrix = trans().detach().cpu().numpy()
+
+        val_loss_list.append(val_loss)
+        val_acc_list.append(val_acc)
 
         epoch_time_end = time.time()
-        # Log 
         print({'epoch': epoch,
-                   'epoch_time': epoch_time_end-epoch_time_start,
-                   'test_estimation_error': estimate_error,
-                   'valid_acc': val_acc / valid_items,
-                   'valid_loss': val_loss / valid_items,
-                   'train_acc': train_acc / train_items,
-                   'train_loss': train_loss / train_items})
+               'epoch_time': epoch_time_end - epoch_time_start,
+               'valid_acc': val_acc,
+               'valid_loss': val_loss,
+               'train_acc': train_acc / train_items,
+               'train_loss': train_loss / train_items})
 
-        if (epoch >= 5) and (epoch % 5 == 0):
-            best_ckpt_epoch = epoch + 1
-            best_model_path = f'./{dataset_name}/ckpts/trans_matrix_est/eps_{epsilon}/new_model_{model_name}_{n_epochs}_lr_{lr}_bs_{batch_size}_lam_{lam}_epoch_{epoch}_seed_{seed}.pth'
-            # create_dir(best_model_path, except_last=True)
-            # torch.save(model, best_model_path)
-        
-        val_loss_list.append(val_loss / valid_items)
-        val_acc_list.append(val_acc / valid_items)
+    # Load best model state
+    model.load_state_dict(best_model_state)
 
-    val_loss_array = np.array(val_loss_list)
-    val_acc_array = np.array(val_acc_list)
-    model_index = np.argmin(val_loss_array)
-    model_index_acc = np.argmax(val_acc_array)
-
-    # matrix_path = f'./{dataset_name}/trans_matrix_est/eps_{epsilon}/{model_name}_lam_{lam}_epochs_{n_epochs}_lr_{lr}_bs_{batch_size}_seed_{seed}_' + 'matrix_epoch_%d.npy' % (model_index+1)
-    # final_est_T = np.load(matrix_path)
-    # final_estimate_error = error(final_est_T, train_transition_matrix)
-
-    # matrix_path_acc = f'./{dataset_name}/trans_matrix_est/eps_{epsilon}/{model_name}_lam_{lam}_epochs_{n_epochs}_lr_{lr}_bs_{batch_size}_seed_{seed}_' + 'matrix_epoch_%d.npy' % (model_index_acc+1)
-    # final_est_T_acc = np.load(matrix_path_acc)
-    # final_estimate_error_acc = error(final_est_T_acc, train_transition_matrix)
-
-    # print("Final estimation error loss: %f" % final_estimate_error)
-    # print("Final estimation error loss acc: %f" % final_estimate_error_acc)
-    # print("Best epoch: %d" % model_index)
-    # print(final_est_T)
-    return model
+    return model, best_trans_matrix, best_val_acc
 
 def prep_model_and_data(dataset_name = 'pathmnist'):
     BATCH_SIZE = 32
@@ -435,7 +541,7 @@ def calc(model, loader, device, fold='Test'):
 def train(model, train_dataloader, valid_dataloader, train_transition_matrix, epsilon):
     lam = 0
     iam_lr = 0
-    trans = sig_t_uniform(device, num_classes)
+    trans = sig_t(device=device, num_classes=len(train_transition_matrix))
 
     trans = trans.to(device)
 
@@ -454,7 +560,7 @@ def train(model, train_dataloader, valid_dataloader, train_transition_matrix, ep
 
 
         print ('=== Start Training ===')
-        last_model = train_model(model = model, 
+        last_model, final_matrix = train_model(model = model, 
                                 trans = trans,
                                 train_data_loader = train_dataloader, 
                                 valid_data_loader = valid_dataloader,
@@ -470,9 +576,9 @@ def train(model, train_dataloader, valid_dataloader, train_transition_matrix, ep
                                 epsilon=epsilon,
                                 model_name= model_name, 
                                 train_transition_matrix = train_transition_matrix)
-        return last_model
+        return last_model, final_matrix
 
-def save(model_name, model, test_loader, val_loader, out_dir, true_labels, acc):
+def save(model_name, model, test_loader, val_loader, out_dir, true_labels, acc, final_matrix):
     create_dir(out_dir)
     # on test
     all_logits, all_preds, all_noisy_labels = calc(model, test_loader, device, fold='Test')
@@ -483,7 +589,8 @@ def save(model_name, model, test_loader, val_loader, out_dir, true_labels, acc):
     save_pickle({'logits': all_logits,
                  'preds': all_preds,
                  'noisyLabels': all_noisy_labels,
-                 'labels' :  true_labels.test_labels} , os.path.join(out_dir, f'model_{model_name}_noisy_training_test_acc_{acc}.pickle'))
+                 'labels' :  true_labels.test_labels,
+                 'matrix': final_matrix} , os.path.join(out_dir, f'model_{model_name}_noisy_training_test_acc_{acc}.pickle'))
     
     print(f"accuracy test: {sum(all_preds==true_labels.test_labels)/len(all_preds)}")
 
@@ -496,7 +603,8 @@ def save(model_name, model, test_loader, val_loader, out_dir, true_labels, acc):
     save_pickle({'loguts': all_logits,
                  'preds': all_preds,
                  'noisyLabels': all_noisy_labels,
-                 'labels' : true_labels.valid_labels}, os.path.join(out_dir, f'model_{model_name}_noisy_training_valid_acc_{acc}.pickle'))
+                 'labels' : true_labels.valid_labels,
+                 'matrix': final_matrix}, os.path.join(out_dir, f'model_{model_name}_noisy_training_valid_acc_{acc}.pickle'))
     
     print(f"accuracy validation: {sum(all_preds==true_labels.valid_labels)/len(all_preds)}")
     
@@ -548,6 +656,6 @@ if __name__ == "__main__":
     train_loader, train_loader_at_eval, val_loader, test_loader, true_labels, trnasition_matrixes =  get_loaders_noisy_training(dataset_name=dataset_name, acc=acc)
     
     # train_loader, val_loader, test_loader, train_transition_matrix, train_labels, model = prep_model_and_data(dataset_name=dataset_name)
-    model = train(model = model, train_dataloader=train_loader, valid_dataloader=val_loader, train_transition_matrix=trnasition_matrixes.train_matrix, epsilon=(100-float(acc))/100)
-    save(model_name, model, test_loader, val_loader, out_dir, true_labels, acc)
+    model, final_matrix = train(model = model, train_dataloader=train_loader, valid_dataloader=val_loader, train_transition_matrix=trnasition_matrixes.train_matrix, epsilon=(100-float(acc))/100)
+    save(model_name, model, test_loader, val_loader, out_dir, true_labels, acc, final_matrix = final_matrix)
     print("results saved")

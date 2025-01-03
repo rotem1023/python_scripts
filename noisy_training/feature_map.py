@@ -46,30 +46,43 @@ class SwinBase(nn.Module):
 
 
 def extract_features(dataloader, model, device):
-    features = np.array([])
-    i = 0
-    labels = []
-    for batch in dataloader:
-        i+=1
-        # Extract the tensor from the batch (batch is a tuple)
-        batch_images = batch[0].to(device)
-        labels.extend(batch[1].tolist())
+    """
+    Extract features from a dataloader using a given model.
 
-        # Apply resizing to all images in the batch
-        x_test = torch.stack([img for img in batch_images])
-        x_test = x_test.float().to(device)
-        cur_features = model.forward(x_test).detach().cpu().numpy()
-        if i ==1:
-            features = cur_features
-        else:
-            features = np.concatenate((features, cur_features), axis=0)
-        del cur_features
-        del batch_images
-        del x_test
+    Args:
+        dataloader: Iterable data loader with batches of data.
+        model: PyTorch model to extract features.
+        device: Device (e.g., 'cuda' or 'cpu') to run computations on.
+
+    Returns:
+        features: Numpy array of extracted features.
+        labels: Numpy array of corresponding labels.
+    """
+    features = []
+    labels = []
+
+    for i, batch in enumerate(dataloader, start=1):
+        # Move batch data to the target device
+        batch_images, batch_labels = batch[0].to(device), batch[1]
+        labels.extend(batch_labels.tolist())
+
+        # Forward pass to extract features
+        with torch.no_grad():
+            batch_features = model(batch_images).cpu().numpy()
+            features.append(batch_features)
+
+        # Clean up unused tensors
+        del batch_images, batch_labels, batch_features
         torch.cuda.empty_cache()
         gc.collect()
-        print(f"batch {i} completed")
+
+        print(f"Batch {i} completed")
+
+    # Concatenate features into a single array
+    features = np.vstack(features)  # Stacking is more efficient than concatenation
     return features, np.array(labels)
+
+
 
 
 if __name__ == '__main__':

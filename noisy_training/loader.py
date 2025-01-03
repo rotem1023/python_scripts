@@ -28,7 +28,7 @@ dataset_to_n_classes_map = {
     'cifar100': 100,
     'tinyimagenet': 200,
     'imagenet': 1000,
-    'dermamnist': 7
+    'dermamnist': 7,
 }
 
 class Data:
@@ -58,6 +58,24 @@ class TransitionMatrix:
         self.test_matrix = test
         
 
+def dataset_to_tensor(dataset):
+    batch_size = 32
+    dataloader = data.DataLoader(dataset, batch_size=batch_size, num_workers=4, pin_memory=True)
+    images_list = []
+    labels_list = []
+
+    for images, labels in dataloader:
+        images = images.view(-1, 3, PIXELS, PIXELS)
+        labels = labels.view(-1)
+        images_list.append(images)
+        labels_list.append(labels)
+
+    # Concatenate all batches into single tensors
+    images_tensor = torch.cat(images_list, dim=0)
+    labels_tensor = torch.cat(labels_list, dim=0)
+    return images_tensor, labels_tensor
+
+
 def load_data(dataset_name):
 
     
@@ -83,14 +101,19 @@ def load_data(dataset_name):
     test_dataset = DataClass(split='test', transform=data_transform, download=download, as_rgb=as_rgb)
 
     print ("----- Dataset to TensorDataset -----")
-    train_images = torch.cat([item[0] for item in train_dataset], axis = 0).reshape(-1, 3, PIXELS, PIXELS)
-    train_labels = torch.tensor([item[1].item() for item in train_dataset])
+    # train_images = torch.cat([item[0] for item in train_dataset], axis = 0).reshape(-1, 3, PIXELS, PIXELS)
+    # train_labels = torch.tensor([item[1].item() for item in train_dataset])
 
-    valid_images = torch.cat([item[0] for item in val_dataset], axis = 0).reshape(-1, 3, PIXELS, PIXELS)
-    valid_labels = torch.tensor([item[1].item() for item in val_dataset])
+    # valid_images = torch.cat([item[0] for item in val_dataset], axis = 0).reshape(-1, 3, PIXELS, PIXELS)
+    # valid_labels = torch.tensor([item[1].item() for item in val_dataset])
 
-    test_images = torch.cat([item[0] for item in test_dataset], axis = 0).reshape(-1, 3, PIXELS, PIXELS)
-    test_labels = torch.tensor([item[1].item() for item in test_dataset])
+    # test_images = torch.cat([item[0] for item in test_dataset], axis = 0).reshape(-1, 3, PIXELS, PIXELS)
+    # test_labels = torch.tensor([item[1].item() for item in test_dataset])
+    
+    
+    train_images, train_labels = dataset_to_tensor(train_dataset)
+    valid_images, valid_labels = dataset_to_tensor(val_dataset)
+    test_images, test_labels = dataset_to_tensor(test_dataset)
     return Data(train_images = train_images, train_labels = train_labels, 
                 valid_images = valid_images, valid_labels = valid_labels,
                 test_images = test_images, test_labels = test_labels,
