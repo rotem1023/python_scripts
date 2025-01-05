@@ -206,7 +206,7 @@ def predict_and_evaluate(loader, model, device):
     print(f"got {len(all_predictions)} predictions")
     return all_predictions, all_targets, accuracy
 
-def train(model, combined_loader, device, train_loader, valid_loader, test_loader, accuracy_threshold):
+def train(dataset, model, combined_loader, device, train_loader, valid_loader, test_loader, accuracy_thresholds):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     
@@ -241,25 +241,45 @@ def train(model, combined_loader, device, train_loader, valid_loader, test_loade
             
             
             # Evaluate on train, valid, and test loaders
-            if (batch_idx%50 == 0):
+            if (batch_idx%1200 == 0):
                 train_accuracy = calculate_accuracy(train_loader, model, device)
                 valid_accuracy = calculate_accuracy(valid_loader, model, device)
                 test_accuracy = calculate_accuracy(test_loader, model, device)
-            
+                accuracy_threshold = accuracy_thresholds[0]
+                if train_accuracy >= accuracy_threshold and valid_accuracy >= accuracy_threshold and test_accuracy >= accuracy_threshold:
+                    print("saiving predictions: Accuracy threshold met!")
+                    accuracy_thresholds.pop(0)
+                    save_noiys_labels(dataset=dataset, accuracy_threshold=accuracy_threshold,
+                                      model=model, train_loader_for_pred=train_loader, val_loader_for_pred=val_loader,
+                                      test_loader_for_pred=test_loader, device=device)
+                    if len(accuracy_thresholds) ==0:
+                        print(f"finish creating noisy labels")            
             # Switch back to training mode
             model.train()
             
             print(f"Ecpoch: {epoch+1}/{num_epochs}, Batch: {batch_idx+1}, Loss: {loss.item():.4f}, "
-              f"Train Acc: {train_accuracy:.2f}%, Valid Acc: {valid_accuracy:.2f}%, Test Acc: {test_accuracy:.2f}%, Current Accuracy: {100 * correct / total:.2f}%, Accuracy Threshold: {accuracy_threshold}%")
-            if train_accuracy >= accuracy_threshold and valid_accuracy >= accuracy_threshold and test_accuracy >= accuracy_threshold:
-                print("Stopping early: Accuracy threshold met!")
-                return
+              f"Train Acc: {train_accuracy:.2f}%, Valid Acc: {valid_accuracy:.2f}%, Test Acc: {test_accuracy:.2f}%, Current Accuracy: {100 * correct / total:.2f}%, Accuracy Threshold: {accuracy_thresholds[0]}%")
+            
+
 
         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {100 * correct / total:.2f}%")
     
 
 
 
+def save_noiys_labels(dataset, accuracy_threshold, model, train_loader_for_pred, val_loader_for_pred, test_loader_for_pred, device):
+    train_predictions, tarin_labels, train_accuracy = predict_and_evaluate(model=model, loader=train_loader_for_pred, device=device)
+    valid_predictions, valid_labels, valid_accuracy = predict_and_evaluate(model=model, loader=val_loader_for_pred, device=device)
+    test_predictions, test_labels, test_accuracy = predict_and_evaluate(model=model, loader=test_loader_for_pred, device=device)
+    
+    
+    outputdir = get_data_dir(dataset=dataset)
+    os.makedirs(outputdir, exist_ok=True)
+    np.save(f"{outputdir}/noisy_labels_train_dataset_{dataset}_want_acc_{accuracy_threshold}_real_acc_{round(train_accuracy)}", train_predictions.numpy())
+    np.save(f"{outputdir}/noisy_labels_valid_dataset_{dataset}_want_acc_{accuracy_threshold}_real_acc_{round(train_accuracy)}", valid_predictions.numpy())
+    np.save(f"{outputdir}/noisy_labels_test_dataset_{dataset}_want_acc_{accuracy_threshold}_real_acc_{round(train_accuracy)}", test_predictions.numpy())
+    print(f"Create noisy labels for data set: {dataset}, accuracy threshold: {accuracy_threshold}")
+    print(f"saved results for data set: {dataset}")
 
 
 
@@ -268,7 +288,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Create noisy labels')
     parser.add_argument('--dataset',
-                        default='chestmnist',
+                        default='pathmnist',
                         help='data set under test',
                         type=str)
     parser.add_argument('--num_epochs',
@@ -307,21 +327,9 @@ if __name__ == '__main__':
 
     combined_loader = create_combine_loader(train_loader=train_loader_at_eval, valid_loader=val_loader, test_loader=test_loader, batch_size=batch_size)
     
-    train(model=model, combined_loader=combined_loader, device=device,
-          train_loader=train_loader_for_pred, valid_loader=val_loader_for_pred, test_loader=test_loader_for_pred, accuracy_threshold=accuracy_threshold)
+    train(dataset= dataset, model=model, combined_loader=combined_loader, device=device,
+          train_loader=train_loader_for_pred, valid_loader=val_loader_for_pred, test_loader=test_loader_for_pred, accuracy_thresholds=[80, 85, 90, 95])
     
-    train_predictions, tarin_labels, train_accuracy = predict_and_evaluate(model=model, loader=train_loader_for_pred, device=device)
-    valid_predictions, valid_labels, valid_accuracy = predict_and_evaluate(model=model, loader=val_loader_for_pred, device=device)
-    test_predictions, test_labels, test_accuracy = predict_and_evaluate(model=model, loader=test_loader_for_pred, device=device)
-    
-    
-    outputdir = get_data_dir(dataset=dataset)
-    os.makedirs(outputdir, exist_ok=True)
-    np.save(f"{outputdir}/noisy_labels_train_dataset_{dataset}_want_acc_{accuracy_threshold}_real_acc_{round(train_accuracy)}", train_predictions.numpy())
-    np.save(f"{outputdir}/noisy_labels_valid_dataset_{dataset}_want_acc_{accuracy_threshold}_real_acc_{round(train_accuracy)}", valid_predictions.numpy())
-    np.save(f"{outputdir}/noisy_labels_test_dataset_{dataset}_want_acc_{accuracy_threshold}_real_acc_{round(train_accuracy)}", test_predictions.numpy())
-    print(f"Create noisy labels for data set: {dataset}, accuracy threshold: {accuracy_threshold}")
-    print(f"saved results for data set: {dataset}")
 
 
 

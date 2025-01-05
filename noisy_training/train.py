@@ -82,24 +82,55 @@ def get_model(model_name, num_classes, feature_extract = False, use_pretrained=T
 
     return model_ft, input_size
 
+# class sig_t(nn.Module):
+#     def __init__(self, device, num_classes, init=2):
+#         super(sig_t, self).__init__()
+
+#         self.register_parameter(name='w', param=nn.parameter.Parameter(-init*torch.ones(num_classes, num_classes)))
+
+#         self.w.to(device)
+
+#         co = torch.ones(num_classes, num_classes)
+#         ind = np.diag_indices(co.shape[0])
+#         co[ind[0], ind[1]] = torch.zeros(co.shape[0])
+#         self.co = co.to(device)
+#         self.identity = torch.eye(num_classes).to(device)
+
+
+#     def forward(self):
+#         sig = torch.sigmoid(self.w)
+#         T = self.identity.detach() + sig*self.co.detach()
+#         T = F.normalize(T, p=1, dim=1)
+
+#         return T
+
 class sig_t(nn.Module):
     def __init__(self, device, num_classes, init=2):
         super(sig_t, self).__init__()
 
-        self.register_parameter(name='w', param=nn.parameter.Parameter(-init*torch.ones(num_classes, num_classes)))
-
+        # Learnable weight matrix (w) initialized with all entries set to -init
+        self.register_parameter(
+            name='w', 
+            param=nn.parameter.Parameter(-init * torch.ones(num_classes, num_classes))
+        )
         self.w.to(device)
 
-        co = torch.ones(num_classes, num_classes)
-        ind = np.diag_indices(co.shape[0])
-        co[ind[0], ind[1]] = torch.zeros(co.shape[0])
-        self.co = co.to(device)
+        # Off-diagonal learnable mask (co)
+        co = torch.rand(num_classes, num_classes)  # Random initialization for more flexibility
+        co[torch.eye(num_classes).bool()] = 0  # Set diagonal elements to 0
+        self.register_buffer('co', co.to(device))  # Save as a non-learnable buffer
+
+        # Identity matrix
         self.identity = torch.eye(num_classes).to(device)
 
-
     def forward(self):
+        # Apply sigmoid activation to learnable weights
         sig = torch.sigmoid(self.w)
-        T = self.identity.detach() + sig*self.co.detach()
+
+        # Construct T matrix
+        T = self.identity.detach() + sig * self.co.detach()
+
+        # Normalize rows to sum to 1
         T = F.normalize(T, p=1, dim=1)
 
         return T
@@ -158,130 +189,6 @@ def save_pickle(data, file_path):
 val_loss_list = []
 val_acc_list = []
 
-# def train_model(model,
-#                 trans,
-#                 train_data_loader,
-#                 valid_data_loader,
-#                 optimizer_es,
-#                 optimizer_trans,
-#                 scheduler1,
-#                 scheduler2,
-#                 n_epochs,
-#                 loss_func_ce,
-#                 batch_size,
-#                 lr,
-#                 epsilon,
-#                 model_name,
-#                 train_transition_matrix,
-#                 lam):
-
-
-#     for epoch in range(n_epochs):
-
-#         print('epoch {}'.format(epoch + 1))
-
-#         epoch_time_start = time.time()
-
-#         model.train()
-#         trans.train()
-
-#         train_loss = 0.
-#         train_vol_loss =0.
-#         train_acc = 0.
-#         val_loss = 0.
-#         val_acc = 0.
-
-#         train_items = 0
-#         model = model.to(device)
-#         for batch_x, batch_y in tqdm(train_data_loader):
-#             batch_x = batch_x.to(device)
-#             batch_y = batch_y.to(device)
-#             train_items += len(batch_x)
-#             optimizer_es.zero_grad()
-#             optimizer_trans.zero_grad()
-
-
-#             clean = F.softmax(model(batch_x), 1)
-#             t = trans()
-
-#             out = torch.mm(clean, t)
-
-#             vol_loss = t.slogdet().logabsdet
-#             ce_loss = loss_func_ce(out.log(), batch_y.long())
-#             loss = ce_loss + lam * vol_loss
-
-#             train_loss += loss.item()
-#             train_vol_loss += vol_loss.item()
-
-#             pred = torch.max(out, 1)[1]
-#             train_correct = (pred == batch_y).sum()
-#             train_acc += train_correct.item()
-
-
-#             loss.backward()
-#             optimizer_es.step()
-#             optimizer_trans.step()
-#         print('Train Loss: {:.6f}, Vol_loss: {:.6f}  Acc: {:.6f}'.format(train_loss / train_items, train_vol_loss / train_items, train_acc / train_items))
-
-#         # --------- Estimation error ---------- #
-#         est_T = t.detach().cpu().numpy()
-#         estimate_error = error(est_T, train_transition_matrix)
-
-#         # matrix_path = f'./{dataset_name}/ckpts/trans_matrix_est/eps_{epsilon}/{model_name}_lam_{lam}_epochs_{n_epochs}_lr_{lr}_bs_{batch_size}_seed_{seed}_matrix_epoch_{epoch+1}.npy'
-#         # create_dir(matrix_path, except_last=True)
-#         # np.save(matrix_path, est_T)
-
-#         print('Estimation Error: {:.2f}'.format(estimate_error))
-#         print(est_T)
-
-#         # ----------------------------------- #
-
-
-#         scheduler1.step()
-#         scheduler2.step()
-
-#         valid_items = 0
-#         with torch.no_grad():
-#             model.eval()
-#             trans.eval()
-#             for batch_x, batch_y in tqdm(valid_data_loader):
-#                 batch_x = batch_x.to(device)
-#                 batch_y = batch_y.to(device)
-#                 valid_items += len(batch_x)
-#                 clean =  F.softmax(model(batch_x))
-#                 t = trans()
-
-#                 out = torch.mm(clean, t)
-#                 loss = loss_func_ce(out.log(), batch_y.long())
-#                 val_loss += loss.item()
-#                 pred = torch.max(out, 1)[1]
-#                 val_correct = (pred == batch_y).sum()
-#                 val_acc += val_correct.item()
-
-                
-#         print('Val Loss: {:.6f}, Acc: {:.6f}'.format(val_loss / valid_items, val_acc / valid_items))
-
-#         epoch_time_end = time.time()
-#         # Log 
-#         print({'epoch': epoch,
-#                    'epoch_time': epoch_time_end-epoch_time_start,
-#                    'test_estimation_error': estimate_error,
-#                    'valid_acc': val_acc / valid_items,
-#                    'valid_loss': val_loss / valid_items,
-#                    'train_acc': train_acc / train_items,
-#                    'train_loss': train_loss / train_items})
-
-        
-#         val_loss_list.append(val_loss / valid_items)
-#         val_acc_list.append(val_acc / valid_items)
-
-#     val_loss_array = np.array(val_loss_list)
-#     val_acc_array = np.array(val_acc_list)
-#     model_index = np.argmin(val_loss_array)
-#     model_index_acc = np.argmax(val_acc_array)
-
-#     final_matrix = trans().detach().cpu().numpy()
-#     return model, final_matrix
 
 
 
@@ -370,6 +277,8 @@ def train_model(model,
 
                 clean = F.softmax(model(batch_x), 1)
                 t = trans()
+                print("matrix")
+                print(t)
                 out = torch.mm(clean, t)
 
                 loss = loss_func_ce(out.log(), batch_y.long())
@@ -403,7 +312,7 @@ def train_model(model,
     # Load best model state
     model.load_state_dict(best_model_state)
 
-    return model, best_trans_matrix, best_val_acc
+    return model, best_trans_matrix
 
 def prep_model_and_data(dataset_name = 'pathmnist'):
     BATCH_SIZE = 32
@@ -600,7 +509,7 @@ def save(model_name, model, test_loader, val_loader, out_dir, true_labels, acc, 
     print(f'Logits shape : {all_logits.shape}, valid')
     print(f'Preds shape : {all_preds.shape}, valid')
     print(f'Noisy Labels shape : {all_noisy_labels.shape}, valid')
-    save_pickle({'loguts': all_logits,
+    save_pickle({'logits': all_logits,
                  'preds': all_preds,
                  'noisyLabels': all_noisy_labels,
                  'labels' : true_labels.valid_labels,
@@ -616,12 +525,12 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(
         description='train model on noisy labels')
-    parser.add_argument('--data_set',
-                        default='bloodmnist',
+    parser.add_argument('--dataset',
+                        default='organamnist',
                         help='data set under test',
                         type=str)
     parser.add_argument('--model_name',
-                        default='resnet18',
+                        default='resnet50',
                         type=str)
     parser.add_argument('--num_epochs',
                         default=25,
@@ -640,7 +549,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     n_epochs = args.num_epochs
     batch_size = args.batch_size
-    dataset_name = args.data_set
+    dataset_name = args.dataset
     model_name = args.model_name
     acc = args.acc
     
