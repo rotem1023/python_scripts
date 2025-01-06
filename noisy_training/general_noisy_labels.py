@@ -244,7 +244,7 @@ def train(dataset, model, combined_loader, device, train_loader, valid_loader, t
             
             
             # Evaluate on train, valid, and test loaders
-            if (batch_idx%50 == 0):
+            if (batch_idx%1200 == 0 and epoch >19):
                 save_file_if_needed(set_type='train', dataset=dataset, model=model, loader=train_loader, device=device, accs=train_accuracy_thresholds)
                 save_file_if_needed(set_type='valid', dataset=dataset, model=model, loader=val_loader, device=device, accs=valid_accuracy_thresholds)
                 save_file_if_needed(set_type='test', dataset=dataset, model=model, loader=test_loader, device=device, accs=test_accuracy_thresholds)    
@@ -340,7 +340,7 @@ if __name__ == '__main__':
     combined_loader = create_combine_loader(train_loader=train_loader_at_eval, valid_loader=val_loader, test_loader=test_loader, batch_size=batch_size)
     
     train(dataset= dataset, model=model, combined_loader=combined_loader, device=device,
-          train_loader=train_loader_for_pred, valid_loader=val_loader_for_pred, test_loader=test_loader_for_pred, accuracy_thresholds=[80, 85, 90, 95])
+          train_loader=train_loader_for_pred, valid_loader=val_loader_for_pred, test_loader=test_loader_for_pred, accuracy_thresholds=[95])
     
 
 
