@@ -277,8 +277,6 @@ def train_model(model,
 
                 clean = F.softmax(model(batch_x), 1)
                 t = trans()
-                print("matrix")
-                print(t)
                 out = torch.mm(clean, t)
 
                 loss = loss_func_ce(out.log(), batch_y.long())
@@ -552,7 +550,7 @@ if __name__ == "__main__":
     dataset_name = args.dataset
     model_name = args.model_name
     acc = args.acc
-    print(f"params: n_epocs = {n_epochs}, batch_size = {batch_size}, dataseet_name = {dataset_name}, model name: { model_name}, accc: {acc}")
+    print(f"params: n_epocs = {n_epochs}, batch_size = {batch_size}, dataseet_name = {dataset_name}, model name: { model_name}, acc: {acc}")
     
 
     # main_imnet1k()
