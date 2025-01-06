@@ -207,6 +207,9 @@ def predict_and_evaluate(loader, model, device):
     return all_predictions, all_targets, accuracy
 
 def train(dataset, model, combined_loader, device, train_loader, valid_loader, test_loader, accuracy_thresholds):
+    train_accuracy_thresholds = [acc for acc in accuracy_thresholds]
+    valid_accuracy_thresholds = [acc for acc in accuracy_thresholds]
+    test_accuracy_thresholds = [acc for acc in accuracy_thresholds]
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     
@@ -241,30 +244,39 @@ def train(dataset, model, combined_loader, device, train_loader, valid_loader, t
             
             
             # Evaluate on train, valid, and test loaders
-            if (batch_idx%1200 == 0):
-                train_accuracy = calculate_accuracy(train_loader, model, device)
-                valid_accuracy = calculate_accuracy(valid_loader, model, device)
-                test_accuracy = calculate_accuracy(test_loader, model, device)
-                accuracy_threshold = accuracy_thresholds[0]
-                if train_accuracy >= accuracy_threshold and valid_accuracy >= accuracy_threshold and test_accuracy >= accuracy_threshold:
-                    print("saiving predictions: Accuracy threshold met!")
-                    accuracy_thresholds.pop(0)
-                    save_noiys_labels(dataset=dataset, accuracy_threshold=accuracy_threshold,
-                                      model=model, train_loader_for_pred=train_loader, val_loader_for_pred=val_loader,
-                                      test_loader_for_pred=test_loader, device=device)
-                    if len(accuracy_thresholds) ==0:
+            if (batch_idx%50 == 0):
+                save_file_if_needed(set_type='train', dataset=dataset, model=model, loader=train_loader, device=device, accs=train_accuracy_thresholds)
+                save_file_if_needed(set_type='valid', dataset=dataset, model=model, loader=val_loader, device=device, accs=valid_accuracy_thresholds)
+                save_file_if_needed(set_type='test', dataset=dataset, model=model, loader=test_loader, device=device, accs=test_accuracy_thresholds)    
+                if len(train_accuracy_thresholds) ==0 and len(valid_accuracy_thresholds) ==0 and len(test_accuracy_thresholds) ==0:
                         print(f"finish creating noisy labels")            
+                        return
             # Switch back to training mode
             model.train()
             
-            print(f"Ecpoch: {epoch+1}/{num_epochs}, Batch: {batch_idx+1}, Loss: {loss.item():.4f}, "
-              f"Train Acc: {train_accuracy:.2f}%, Valid Acc: {valid_accuracy:.2f}%, Test Acc: {test_accuracy:.2f}%, Current Accuracy: {100 * correct / total:.2f}%, Accuracy Threshold: {accuracy_thresholds[0]}%")
+            print(f"Ecpoch: {epoch+1}/{num_epochs}, Batch: {batch_idx+1}, Loss: {loss.item():.4f}")
             
 
 
         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {100 * correct / total:.2f}%")
     
 
+def save_file_if_needed(set_type, dataset, model, loader, device, accs):
+    if (len(accs)> 0):
+        accuracy = calculate_accuracy(loader, model, device)
+        accuracy_threshold = accs[0]
+        print(f"cur acc for dataset: {dataset}, set:{set_type} is {round(accuracy,2)}, acc threshold: {accuracy_threshold}")
+        if accuracy>= accuracy_threshold:
+            print(f"saiving predictions: Accuracy threshold met! for accuracy threshold {accuracy_threshold} and set: {set_type}, daataset: {dataset}")
+            accs.pop(0)
+            save_noist_labels_for_set(set_type, dataset, accuracy_threshold, model, loader, device)
+
+def save_noist_labels_for_set(set_type, dataset, accuracy_threshold, model, loader, device):
+    predictions, tarin_labels, accuracy = predict_and_evaluate(model=model, loader=loader, device=device)
+    outputdir = get_data_dir(dataset=dataset)
+    os.makedirs(outputdir, exist_ok=True)
+    np.save(f"{outputdir}/noisy_labels_{set_type}_dataset_{dataset}_want_acc_{accuracy_threshold}_real_acc_{round(accuracy)}", predictions.numpy())
+    print(f"saved results for data set: {dataset}, set: {set_type}, wanted accuracy: {accuracy_threshold}")
 
 
 def save_noiys_labels(dataset, accuracy_threshold, model, train_loader_for_pred, val_loader_for_pred, test_loader_for_pred, device):
@@ -276,8 +288,8 @@ def save_noiys_labels(dataset, accuracy_threshold, model, train_loader_for_pred,
     outputdir = get_data_dir(dataset=dataset)
     os.makedirs(outputdir, exist_ok=True)
     np.save(f"{outputdir}/noisy_labels_train_dataset_{dataset}_want_acc_{accuracy_threshold}_real_acc_{round(train_accuracy)}", train_predictions.numpy())
-    np.save(f"{outputdir}/noisy_labels_valid_dataset_{dataset}_want_acc_{accuracy_threshold}_real_acc_{round(train_accuracy)}", valid_predictions.numpy())
-    np.save(f"{outputdir}/noisy_labels_test_dataset_{dataset}_want_acc_{accuracy_threshold}_real_acc_{round(train_accuracy)}", test_predictions.numpy())
+    np.save(f"{outputdir}/noisy_labels_valid_dataset_{dataset}_want_acc_{accuracy_threshold}_real_acc_{round(valid_accuracy)}", valid_predictions.numpy())
+    np.save(f"{outputdir}/noisy_labels_test_dataset_{dataset}_want_acc_{accuracy_threshold}_real_acc_{round(test_accuracy)}", test_predictions.numpy())
     print(f"Create noisy labels for data set: {dataset}, accuracy threshold: {accuracy_threshold}")
     print(f"saved results for data set: {dataset}")
 

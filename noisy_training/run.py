@@ -3,8 +3,8 @@ import itertools
 import os
 
 # Define lists of models, datasets, and accuracies
-models = ['resnet50', 'densenet121']
-datasets = ['bloodmnist', 'organamnist', 'pathmnist']
+models = ['densenet121']
+datasets = ['bloodmnist']
 accuracies = [80, 85, 90, 95]
 
 # Path to the Python script you want to run

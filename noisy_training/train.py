@@ -552,6 +552,7 @@ if __name__ == "__main__":
     dataset_name = args.dataset
     model_name = args.model_name
     acc = args.acc
+    print(f"params: n_epocs = {n_epochs}, batch_size = {batch_size}, dataseet_name = {dataset_name}, model name: { model_name}, accc: {acc}")
     
 
     # main_imnet1k()
